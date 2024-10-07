@@ -238,3 +238,9 @@ pub trait SyscallDriver {
     // implement this function.
     fn allocate_grant(&self, process_id: ProcessId) -> Result<(), crate::process::Error>;
 }
+
+impl SyscallDriver for () {
+    fn allocate_grant(&self, _process_id: ProcessId) -> Result<(), crate::process::Error> {
+        Ok(())
+    }
+}

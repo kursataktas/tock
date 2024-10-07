@@ -4,6 +4,7 @@
 
 //! Tock kernel for the Nordic Semiconductor nRF52840 development kit (DK).
 
+#![feature(associated_type_defaults)]
 #![no_std]
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
@@ -15,8 +16,11 @@ use core::ptr::{addr_of, addr_of_mut};
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
+use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::Process;
 use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::syscall::SyscallDriver;
 use kernel::{capabilities, create_capability, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
@@ -49,7 +53,7 @@ const NUM_PROCS: usize = 8;
 static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None; NUM_PROCS];
 
-static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
+static mut CHIP: Option<&'static <Platform as ComponentTypes>::ChipType> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -60,7 +64,21 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 // SYSCALL DRIVER TYPE DEFINITIONS
 //------------------------------------------------------------------------------
 
-type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
+// type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
+
+// type ProcessType = kernel::process::ProcessStandard<
+//     'static,
+//     nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>,
+//     kernel::process::ProcessStandardDebugFull,
+// >;
+
+trait ComponentTypes {
+    type ChipType: Chip;
+    type ProcessType: Process;
+
+    type AlarmDriver: SyscallDriver = ();
+    type ButtonDriver: SyscallDriver = ();
+}
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -70,9 +88,18 @@ pub struct Platform {
         kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
         4,
     >,
-    alarm: &'static AlarmDriver,
+    alarm: &'static <Platform as ComponentTypes>::AlarmDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+}
+
+impl ComponentTypes for Platform {
+    type ChipType = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
+    type ProcessType = kernel::process::ProcessStandard<
+        'static,
+        nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>,
+    >;
+    type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
 }
 
 impl SyscallDriverLookup for Platform {
@@ -278,7 +305,7 @@ pub unsafe fn main() {
     let storage_permissions_policy =
         components::storage_permissions::null::StoragePermissionsNullComponent::new().finalize(
             components::storage_permissions_null_component_static!(
-                nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>
+                <Platform as ComponentTypes>::ChipType,
             ),
         );
 
@@ -297,7 +324,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
     )
     .finalize(components::process_loader_sequential_component_static!(
-        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        <Platform as ComponentTypes>::ChipType,
         NUM_PROCS
     ));
 
