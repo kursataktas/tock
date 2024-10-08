@@ -28,18 +28,18 @@ macro_rules! led_component_static {
         use kernel::static_init;
         const NUM_LEDS: usize = count_expressions!($($L),+);
         let arr = static_init!(
-            [&'static $Led; NUM_LEDS],
+            [&'static <$Led as crate::ComponentTypes>::LedType; NUM_LEDS],
             [
                 $(
                     static_init!(
-                        $Led,
+                        <$Led as crate::ComponentTypes>::LedType,
                         $L
                     )
                 ),+
             ]
         );
 
-        let led = kernel::static_buf!( capsules_core::led::LedDriver<'static, $Led, NUM_LEDS>);
+        let led = kernel::static_buf!( capsules_core::led::LedDriver<'static, <$Led as crate::ComponentTypes>::LedType, NUM_LEDS>);
         (led, arr)
     };};
 }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+#![feature(associated_type_defaults)]
 #![no_std]
 
 pub mod adc;
@@ -96,3 +97,22 @@ pub mod touch;
 pub mod udp_driver;
 pub mod udp_mux;
 pub mod usb;
+
+use kernel::hil::led::Led;
+use kernel::hil::time::Alarm;
+use kernel::platform::chip::Chip;
+use kernel::process::Process;
+use kernel::syscall::SyscallDriver;
+
+pub trait ComponentTypes<'a> {
+    type ChipType: Chip;
+    type ProcessType: Process;
+
+    type AlarmType: Alarm<'a>;
+    type AlarmDriver: SyscallDriver = ();
+
+    type ButtonDriver: SyscallDriver = ();
+
+    type LedType: Led;
+    type LedDriver: SyscallDriver = ();
+}

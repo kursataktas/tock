@@ -13,14 +13,12 @@
 
 use core::ptr::{addr_of, addr_of_mut};
 
+use components::ComponentTypes;
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
-use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::Process;
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::syscall::SyscallDriver;
 use kernel::{capabilities, create_capability, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
@@ -72,34 +70,27 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 //     kernel::process::ProcessStandardDebugFull,
 // >;
 
-trait ComponentTypes {
-    type ChipType: Chip;
-    type ProcessType: Process;
-
-    type AlarmDriver: SyscallDriver = ();
-    type ButtonDriver: SyscallDriver = ();
-}
-
 /// Supported drivers by the platform
 pub struct Platform {
     console: &'static capsules_core::console::Console<'static>,
-    led: &'static capsules_core::led::LedDriver<
-        'static,
-        kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
-        4,
-    >,
-    alarm: &'static <Platform as ComponentTypes>::AlarmDriver,
+    led: &'static <Platform as ComponentTypes<'static>>::LedDriver,
+    alarm: &'static <Platform as ComponentTypes<'static>>::AlarmDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
 
-impl ComponentTypes for Platform {
+impl ComponentTypes<'static> for Platform {
     type ChipType = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
     type ProcessType = kernel::process::ProcessStandard<
         'static,
         nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>,
     >;
-    type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
+
+    type AlarmType = nrf52840::rtc::Rtc<'static>;
+    type AlarmDriver = components::alarm::AlarmDriverComponentType<Self::AlarmType>;
+
+    type LedType = kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>;
+    type LedDriver = components::led::LedsComponentType<Self::LedType, 4>;
 }
 
 impl SyscallDriverLookup for Platform {
@@ -225,7 +216,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
-        LedLow<'static, nrf52840::gpio::GPIOPin>,
+        Platform,
         LedLow::new(&nrf52840_peripherals.gpio_port[LED1_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED2_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED3_PIN]),
@@ -245,7 +236,7 @@ pub unsafe fn main() {
         capsules_core::alarm::DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_static!(nrf52840::rtc::Rtc));
+    .finalize(components::alarm_component_static!(Platform));
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG

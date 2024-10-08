@@ -44,12 +44,18 @@ macro_rules! alarm_mux_component_static {
 macro_rules! alarm_component_static {
     ($A:ty $(,)?) => {{
         let mux_alarm = kernel::static_buf!(
-            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+                'static,
+                <$A as crate::ComponentTypes>::AlarmType,
+            >
         );
         let alarm_driver = kernel::static_buf!(
             capsules_core::alarm::AlarmDriver<
                 'static,
-                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+                    'static,
+                    <$A as crate::ComponentTypes>::AlarmType,
+                >,
             >
         );
 
