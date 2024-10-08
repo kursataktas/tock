@@ -35,7 +35,12 @@ use kernel::hil::time::{self, Alarm};
 #[macro_export]
 macro_rules! alarm_mux_component_static {
     ($A:ty $(,)?) => {{
-        kernel::static_buf!(capsules_core::virtualizers::virtual_alarm::MuxAlarm<'static, $A>)
+        kernel::static_buf!(
+            capsules_core::virtualizers::virtual_alarm::MuxAlarm<
+                'static,
+                <$A as crate::ComponentTypes>::AlarmType,
+            >
+        )
     };};
 }
 
@@ -73,8 +78,12 @@ pub struct AlarmMuxComponent<A: 'static + time::Alarm<'static>> {
 }
 
 impl<A: 'static + time::Alarm<'static>> AlarmMuxComponent<A> {
-    pub fn new(alarm: &'static A) -> AlarmMuxComponent<A> {
-        AlarmMuxComponent { alarm }
+    pub fn new<C: crate::ComponentTypes<'static, AlarmType = A>>(
+        platform: &'static C,
+    ) -> AlarmMuxComponent<A> {
+        AlarmMuxComponent {
+            alarm: platform.get_alarm(),
+        }
     }
 }
 

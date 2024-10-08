@@ -110,9 +110,12 @@ pub trait ComponentTypes<'a> {
 
     type AlarmType: Alarm<'a>;
     type AlarmDriver: SyscallDriver = ();
+    const ALARM_DRIVER_NUM: usize;
 
     type ButtonDriver: SyscallDriver = ();
 
     type LedType: Led;
     type LedDriver: SyscallDriver = ();
+
+    fn get_alarm(&self) -> &Self::AlarmType;
 }

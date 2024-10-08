@@ -51,7 +51,7 @@ const NUM_PROCS: usize = 8;
 static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None; NUM_PROCS];
 
-static mut CHIP: Option<&'static <Platform as ComponentTypes>::ChipType> = None;
+static mut CHIP: Option<&'static <PlatformTypes as ComponentTypes>::ChipType> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -73,13 +73,18 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 /// Supported drivers by the platform
 pub struct Platform {
     console: &'static capsules_core::console::Console<'static>,
-    led: &'static <Platform as ComponentTypes<'static>>::LedDriver,
-    alarm: &'static <Platform as ComponentTypes<'static>>::AlarmDriver,
+    led: &'static <PlatformTypes as ComponentTypes<'static>>::LedDriver,
+    alarm: &'static <PlatformTypes as ComponentTypes<'static>>::AlarmDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
 
-impl ComponentTypes<'static> for Platform {
+/// Container for all type information about this particular board.
+pub struct PlatformTypes {
+    peripherals: &'static Nrf52840DefaultPeripherals<'static>,
+}
+
+impl ComponentTypes<'static> for PlatformTypes {
     type ChipType = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
     type ProcessType = kernel::process::ProcessStandard<
         'static,
@@ -88,9 +93,14 @@ impl ComponentTypes<'static> for Platform {
 
     type AlarmType = nrf52840::rtc::Rtc<'static>;
     type AlarmDriver = components::alarm::AlarmDriverComponentType<Self::AlarmType>;
+    const ALARM_DRIVER_NUM: usize = capsules_core::alarm::DRIVER_NUM;
 
     type LedType = kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>;
     type LedDriver = components::led::LedsComponentType<Self::LedType, 4>;
+
+    fn get_alarm(&self) -> &Self::AlarmType {
+        &self.peripherals.nrf52.rtc
+    }
 }
 
 impl SyscallDriverLookup for Platform {
@@ -203,6 +213,13 @@ pub unsafe fn main() {
     )
     .finalize(());
 
+    let platform_type = static_init!(
+        PlatformTypes,
+        PlatformTypes {
+            peripherals: nrf52840_peripherals,
+        }
+    );
+
     //--------------------------------------------------------------------------
     // CAPABILITIES
     //--------------------------------------------------------------------------
@@ -216,7 +233,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
-        Platform,
+        PlatformTypes,
         LedLow::new(&nrf52840_peripherals.gpio_port[LED1_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED2_PIN]),
         LedLow::new(&nrf52840_peripherals.gpio_port[LED3_PIN]),
@@ -229,14 +246,14 @@ pub unsafe fn main() {
 
     let rtc = &base_peripherals.rtc;
     let _ = rtc.start();
-    let mux_alarm = components::alarm::AlarmMuxComponent::new(rtc)
-        .finalize(components::alarm_mux_component_static!(nrf52840::rtc::Rtc));
+    let mux_alarm = components::alarm::AlarmMuxComponent::new(platform_type)
+        .finalize(components::alarm_mux_component_static!(PlatformTypes));
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules_core::alarm::DRIVER_NUM,
+        PlatformTypes::ALARM_DRIVER_NUM,
         mux_alarm,
     )
-    .finalize(components::alarm_component_static!(Platform));
+    .finalize(components::alarm_component_static!(PlatformTypes));
 
     //--------------------------------------------------------------------------
     // UART & CONSOLE & DEBUG
@@ -296,7 +313,7 @@ pub unsafe fn main() {
     let storage_permissions_policy =
         components::storage_permissions::null::StoragePermissionsNullComponent::new().finalize(
             components::storage_permissions_null_component_static!(
-                <Platform as ComponentTypes>::ChipType,
+                <PlatformTypes as ComponentTypes>::ChipType,
             ),
         );
 
@@ -315,7 +332,7 @@ pub unsafe fn main() {
         storage_permissions_policy,
     )
     .finalize(components::process_loader_sequential_component_static!(
-        <Platform as ComponentTypes>::ChipType,
+        <PlatformTypes as ComponentTypes>::ChipType,
         NUM_PROCS
     ));
 
