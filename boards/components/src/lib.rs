@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 #![feature(associated_type_defaults)]
+#![feature(never_type)]
 #![no_std]
 
 pub mod adc;
@@ -99,6 +100,7 @@ pub mod udp_mux;
 pub mod usb;
 
 use kernel::hil::led::Led;
+use kernel::hil::pwm::Pwm;
 use kernel::hil::time::Alarm;
 use kernel::platform::chip::Chip;
 use kernel::process::Process;
@@ -116,6 +118,8 @@ pub trait ComponentTypes<'a> {
 
     type LedType: Led;
     type LedDriver: SyscallDriver = ();
+
+    type PwmType: Pwm = !;
 
     fn get_alarm(&self) -> &Self::AlarmType;
 }

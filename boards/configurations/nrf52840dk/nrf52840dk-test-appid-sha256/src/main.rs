@@ -4,7 +4,6 @@
 
 //! Tock kernel for the Nordic Semiconductor nRF52840 development kit (DK).
 
-#![feature(associated_type_defaults)]
 #![no_std]
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.

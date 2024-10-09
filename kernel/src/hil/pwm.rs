@@ -68,3 +68,24 @@ pub trait PwmPin {
     /// Same as the `get_maximum_duty_cycle` function in the `Pwm` trait.
     fn get_maximum_duty_cycle(&self) -> usize;
 }
+
+impl Pwm for ! {
+    type Pin = ();
+    fn start(
+        &self,
+        _pin: &Self::Pin,
+        _frequency_hz: usize,
+        _duty_cycle: usize,
+    ) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+    fn stop(&self, _pin: &Self::Pin) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+    fn get_maximum_frequency_hz(&self) -> usize {
+        0
+    }
+    fn get_maximum_duty_cycle(&self) -> usize {
+        0
+    }
+}
